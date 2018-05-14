@@ -4,7 +4,7 @@ births.recode<-read.dta13("C:\\Users\\sam-pc\\Documents\\pitz\\Bsc Biostatistics
 #reading only the variables that i am interested in 
 #b2=year of birth 
 #b5= child is alive 
-#b6=age at birth 
+#b6=age at death
 #b11=preceeding birth interval (months)
 #b12=succeeding birth intervals in months 
 #m15= place of delivery 
@@ -15,8 +15,14 @@ births.recode<-read.dta13("C:\\Users\\sam-pc\\Documents\\pitz\\Bsc Biostatistics
 #v001 = cluster number 
 #v005= sample weight 
 my.data<-births.recode[,c("b2","b5","b11","b12","m15","m19","m17","m18","b7","v001","v005")]
-#manipulating data 
+#manipulating data \
+#changing b11 and b12 from numeric to factor 
+
 library(dplyr)
+#extracting data for only children who are dead 
+my.data<-my.data[,my.data$b6=="no"]
 my.data %>% group_by(my.data$v001) %>% 
   summarise(child_is_alive =sum(b5=="yes"),
-            child_is_dead=sum(b5=="no"))
+            child_is_dead=sum(b5=="no"),
+            preceeding_birth_interval=mean(b11,na.rm=TRUE))
+
