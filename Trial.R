@@ -1,6 +1,6 @@
 #importing dataset 
-library(readstata13)
-births.recode<-read.dta("C:\\Users\\sam-pc\\Documents\\pitz\\Bsc Biostatistics\\BBS 4.2\\Mapping excersie\\DHS Child mortality kenya\\KE_2014_DHS_04262018_458_120021\\KEKR71DT\\KEKR71FL.DTA")
+library(haven)
+births.recode<-read_dta("C:\\Users\\sam-pc\\Documents\\pitz\\Bsc Biostatistics\\BBS 4.2\\Mapping excersie\\DHS Child mortality kenya\\KE_2014_DHS_04262018_458_120021\\KEKR71DT\\KEKR71FL.DTA")
 #births.recode[is.na(births.recode)]<-"NULL"
 #reading only the variables that i am interested in 
 #b2=year of birth 
@@ -12,7 +12,6 @@ births.recode<-read.dta("C:\\Users\\sam-pc\\Documents\\pitz\\Bsc Biostatistics\\
 #m19 = birth weight in kgs 
 #m17 = delivery by ceaserian sections 
 #m18 = size of child at birth 
-#b7= age at death (months)
 #v001 = cluster number 
 #v005= sample weight 
 my_data<-births.recode[,c("b2","b5","b6","b11","b12","m15","m19","m17","m18","b7","v001","v005")]
