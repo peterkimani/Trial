@@ -59,42 +59,47 @@ library(dplyr)
 sdata@data<-left_join(sdata@data,f.data,by="DHSCLUST")
 #importing counties dataset 
 counties<-readOGR(".","County")
+Division<-readOGR(".","Division")
+location<-readOGR(".","Kenya__Administrative_Boundaries__Level_4")
+bject1<-readOGR(".","kenya_divisions")
+bject2<-readOGR(".","KEN_Adm2")
 #dividing the region into cells 
 library(raster)
 e<-extent(bbox(counties))
 r<-raster(e)
-dim(r)<-c(40,40)
+dim(r)<-c(20,20)
 projection(r)<-CRS(proj4string(counties))
 tomap<-as(r,'SpatialPolygonsDataFrame')
 tomap$id<-cbind(c(1:dim(tomap)[1]))
 threemap<-tomap[counties,]
 plot(threemap)
-
+County<-counties
 #obtaining counts and averages based on the cells regions 
-total_children<-aggregate(x=sdata["total_children"],by=threemap,FUN=sum)
-total_deaths<-aggregate(x=sdata["total_observed_deaths"],by=threemap,FUN=sum)
-sbirth_interval<-aggregate(x=sdata["succeeding_birth_interval"],by=threemap,FUN=mean)
-pbirth_interval<-aggregate(x=sdata["precceeding_birth_interval"],by=threemap,FUN=mean)
-ceaserian_delivery<-aggregate(x=sdata["deliverary_by_ceaserian"],by=threemap,FUN=sum)
-birth_weight<-aggregate(x=sdata["birth_weight"],by=threemap,FUN=mean)
-sample_weight<-aggregate(x=sdata["sample_weight"],by=threemap,FUN =mean)
+total_children<-aggregate(x=sdata["total_children"],by=County,FUN=sum,na.rm=T)
+total_deaths<-aggregate(x=sdata["total_observed_deaths"],by=County,FUN=sum,na.rm=T)
+sbirth_interval<-aggregate(x=sdata["succeeding_birth_interval"],by=County,FUN=mean,na.rm=T)
+pbirth_interval<-aggregate(x=sdata["precceeding_birth_interval"],by=County,FUN=mean,na.rm=T)
+ceaserian_delivery<-aggregate(x=sdata["deliverary_by_ceaserian"],by=County,FUN=sum,na.rm=T)
+birth_weight<-aggregate(x=sdata["birth_weight"],by=County,FUN=mean,na.rm=T)
+sample_weight<-aggregate(x=sdata["sample_weight"],by=County,FUN =mean,na.rm=T)
 #merging them into one dataset 
 bcells<-cbind(total_children,total_deaths,sbirth_interval,pbirth_interval,ceaserian_delivery,
               birth_weight,sample_weight)
 #adding id 
-bcells$id<-threemap$id
+bcells$id<-County$id
 
 #variable selection using FWD select 
 library(FWDselect)
 y<-bcells$total_observed_deaths
 x<-bcells@data[,c("succeeding_birth_interval","precceeding_birth_interval","deliverary_by_ceaserian","birth_weight")]
-my_pvariables<-qselection(x,y,criterion = "aic",method = "glm",family = "poisson",qvector = c(1:4))
+my_pvariables<-qselection(x,y,criterion = "aic",method = "glm",family = "poisson",qvector = c(1:3))
 # all variables in the model are significant 
+
 
 #computing moran 1 test for each variable 
 library(spdep)
 w<-poly2nb(bcells)
-ww<-nb2listw(w,style = "B")
+ww<-nb2listw(w,style = "B",zero.policy = T)
  
 moran.test(bcells$total_observed_deaths,ww,randomisation = T,zero.policy = T,na.action = na.omit)
 moran.test(bcells$succeeding_birth_interval,ww,randomisation = T,zero.policy = T,na.action = na.omit)
@@ -102,32 +107,36 @@ moran.test(bcells$precceeding_birth_interval,ww,randomisation = T,zero.policy = 
 moran.test(bcells$deliverary_by_ceaserian,ww,randomisation = T,zero.policy = T,na.action = na.omit)
 
 #using inla to model the results 
+library(INLA)
 #computing the expected valunes 
 bcells$expected_deaths<-bcells$total_children*(sum(bcells$total_observed_deaths,na.rm = T)/sum(bcells$total_children,na.rm=T))
 bcells$relative_risk<-bcells$total_observed_deaths/bcells$expected_deaths
-
-library(INLA)
 #adding replicating ID 
 bcells$id2<-bcells$id
 bcells$tid<-c(1:dim(bcells)[1])
 bcells$tid2<-bcells$tid
 ww.nb<-poly2nb(bcells,row.names=bcells$tid)
 nb2INLA("ww.adj",ww.nb)
+kenya<-data.frame(bcells)
+
+#running bayesian poisson model 
+formulae.modela<-total_observed_deaths~1+succeeding_birth_interval+deliverary_by_ceaserian+precceeding_birth_interval
+modela<-inla(formulae.modela,family = "poisson",data = kenya,E = expected_deaths,control.compute = list(dic=T,waic=T))
 
 #standard bym model without covariates 
 #bcells<-cbind(bcells,tid2=bcells$id)
 #standard bym model (without covariates)
-kenya<-data.frame(bcells)
-formulae<-total_observed_deaths~f(tid2,model="besag",graph= "ww.adj")+f(tid,model="iid")
-result<-inla(formulae,family="poisson",data= kenya,E= expected_deaths,control.compute = list(dic=T))
+
+formulae<-total_observed_deaths~1+f(tid2,model="besag",graph= "ww.adj")+f(tid,model="iid")
+result<-inla(formulae,family="poisson",data= kenya,E= expected_deaths,control.compute = list(dic=T,waic=T))
 
 #standard bym model with covariates 
 formulae2<-total_observed_deaths~f(tid2,model="besag",graph = "ww.adj")+f(tid,model="iid")+
-    succeeding_birth_interval+precceeding_birth_interval+deliverary_by_ceaserian+birth_weight
-result2<-inla(formulae2,family="poisson",data= kenya,E= expected_deaths,control.compute = list(dic=T))
+   +birth_weight
+result2<-inla(formulae2,family="poisson",data= kenya,E= expected_deaths,control.compute = list(dic=T,waic=T))
 #bym with smooth covariates 
 result3<-inla(total_observed_deaths~succeeding_birth_interval+precceeding_birth_interval+deliverary_by_ceaserian+birth_weight+
-                  f(tid2,model="besag",graph="ww.adj"),family = "poisson",E=expected_deaths,data=kenya,control.predictor = list(compute = TRUE),control.compute = list(dic=T))
+                  f(tid2,model="besag",graph="ww.adj"),family = "poisson",E=expected_deaths,data=kenya,control.predictor = list(compute = TRUE),control.compute = list(dic=T,waic=T))
 
 
 #obtaining raw and fitted smr 
@@ -135,7 +144,12 @@ bcells$fittedsmr<-result3$summary.fitted.values$mean
 plot(bcells$relative_risk,bcells$fittedsmr)
 library(tmap)
 qtm(bcells,fill=c("fittedsmr","relative_risk"))
+library(sp)
+spplot(bcells,z=c("fittedsmr","relative_risk"))
 
+
+#
+bcells$estimated_deaths<-bcells$fittedsmr*bcells$total_observed_deaths
 
 #interpolating the fitted smr 
 library(foreign)
