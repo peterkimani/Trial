@@ -47,7 +47,9 @@ summarise(
 
 #computing expected total number of child deaths 
 f.data$expected_deaths<-f.data$total_children*((sum(f.data$total_observed_deaths)/sum(f.data$total_children)))
-#estimating relative risk 
+#running bayesian poisson model using clusters 
+formulae.model0<-total_observed_deaths~1+succeeding_birth_interval+deliverary_by_ceaserian+precceeding_birth_interval
+modelb0<-inla(formulae.model0,family = "poisson",data = f.data,E = expected_deaths,control.compute = list(dic=T,waic=T))#estimating relative risk 
 f.data$relative_risk<-f.data$total_observed_deaths/f.data$expected_deaths
 
 
@@ -73,7 +75,7 @@ tomap<-as(r,'SpatialPolygonsDataFrame')
 tomap$id<-cbind(c(1:dim(tomap)[1]))
 threemap<-tomap[counties,]
 plot(threemap)
-County<-counties
+County<-bject2
 #obtaining counts and averages based on the cells regions 
 total_children<-aggregate(x=sdata["total_children"],by=County,FUN=sum,na.rm=T)
 total_deaths<-aggregate(x=sdata["total_observed_deaths"],by=County,FUN=sum,na.rm=T)

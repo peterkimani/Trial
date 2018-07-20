@@ -4,24 +4,20 @@ births<-read.dta13("C:\\Users\\sam-pc\\Documents\\pitz\\Bsc Biostatistics\\BBS 4
 #selecting the variables that we want 
 t<-c("v001","v005","v137","v152","v190","v101","v208","v228","v501","v714","bidx","b0","b2","b5","b9",
      "v113","v116","v119","v130","v131","v106","v149","v151","v101","v102","v010","v012","v212","bord","v525","b4","v212","m18","m15")
-myvariables<-births[,c(t)]
+myvariables<-births[,c("v001","v005","v137","v152","v190","v101","v208","v228","v501","v714","bidx","b0","b2","b5","b9",
+                       "v113","v116","v119","v130","v131","v106","v149","v151","v101","v102","v010","v012","v212","bord","v525","b4","v212","m18","m15")]
 #creating an child mortality variable 
 myvariables$status<-as.numeric(myvariables$b5%in% "no")
 
-#testing chisquare test 
-library(dplyr)
-myvariables %>% 
-  summarise_each(funs(chisq.test(., 
-                                 myvariables$status)$p.value), -one_of("status"))
 
 #Selecting the best variables in the models 
 #after performing chisquare test the significant variables based on chisquare are 
-b<-c("v137","v208","v228","v501","bidx","b0","b2","b9",
+b<-c("v137","v208","v228","v501","bidx","b0","b2",
        "v131","v106","v149","v101","v212","bord","b4","v212","m18")
 library(FWDselect)
 x<-myvariables[,c(b)]
 y<-myvariables$status
-output1<-qselection(x,y,qvector = c(1:5),criterion = "aic",method = "glm",family = "binomial",cluster = T,control=list(maxit=50))
+output1<-qselection(x,y,qvector = c(1:5),criterion = "aic",method = "glm",family = "binomial",cluster = T)
 
 library(dplyr)
 f.myvariables<-myvariables %>% group_by(myvariables$v001) %>% 
@@ -37,10 +33,10 @@ f.myvariables<-myvariables %>% group_by(myvariables$v001) %>%
     b4=(sum(b4=="male")/length(b5))
   )
 
+
 #importing the spatial object 
 library(rgdal)
 sdata<-readOGR(".","KEGE71FL")
-names(f.data)[1]<-"DHSCLUST"
 library(dplyr)
 names(f.myvariables)[1]<-"DHSCLUST"
 sdata@data<-left_join(sdata@data,f.myvariables,by="DHSCLUST")
